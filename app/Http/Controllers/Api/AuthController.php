@@ -59,14 +59,14 @@ class AuthController extends Controller
         $token = $user->createToken('api_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user->load('roles'),
+            'user' => $user->load(['roles', 'schools']),  // ⭐ AGREGADO: cargar schools
             'token' => $token,
         ]);
     }
 
     public function me(Request $request)
     {
-        return $request->user()->load('roles');
+        return $request->user()->load(['roles', 'schools']);  // ⭐ CORREGIDO: cargar roles Y schools
     }
 
     public function logout(Request $request)
@@ -75,4 +75,3 @@ class AuthController extends Controller
         return response()->noContent();
     }
 }
-

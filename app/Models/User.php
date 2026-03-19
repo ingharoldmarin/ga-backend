@@ -106,4 +106,17 @@ class User extends Authenticatable
     {
         return $this->hasRole('estudiante');
     }
+
+      
+    public function curriculumGrids(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            CurriculumGrid::class,
+            'curriculum_grid_user',
+            'user_id',
+            'curriculum_grid_id'
+        )
+        ->withPivot(['assigned_by', 'school_id', 'assigned_at'])
+        ->withTimestamps();
+    }
 }

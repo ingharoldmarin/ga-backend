@@ -101,4 +101,18 @@ class CurriculumGrid extends Model
             'evidence_id'
         )->withTimestamps();
     }
+        /**
+     * ⭐ NUEVA RELACIÓN: Profesores que tienen esta malla asignada
+     */
+    public function users()
+    {
+        return $this->belongsToMany(
+            User::class,
+            'curriculum_grid_user',
+            'curriculum_grid_id',
+            'user_id'
+        )
+        ->withPivot(['assigned_by', 'school_id', 'assigned_at'])
+        ->withTimestamps();
+    }
 }
