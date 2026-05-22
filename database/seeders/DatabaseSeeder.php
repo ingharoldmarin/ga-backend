@@ -2,68 +2,53 @@
 
 namespace Database\Seeders;
 
-use App\Models\Role;
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database.
+     * Orden de ejecución:
+     * 1. Roles
+     * 2. Colegios
+     * 3. Usuarios (admin, coordinadores, profesores, estudiantes)
+     * 4. Grados y Materias
+     * 5. Elementos curriculares (topics, components, standards, competences, affirmations, evidences)
+     * 6. Mallas curriculares (curriculum_grid + pivots)
+     * 7. Asignaciones (mallas a profesores, teacher_subject)
+     * 8. Cronogramas semanales y observaciones de ejemplo
      */
     public function run(): void
     {
-        // Roles
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $coordinatorRole = Role::firstOrCreate(['name' => 'coordinator']);
-        $teacherRole = Role::firstOrCreate(['name' => 'teacher']);
-        $studentRole = Role::firstOrCreate(['name' => 'student']);
+        $this->command->info('');
+        $this->command->info('════════════════════════════════════════');
+        $this->command->info('  GestiónAcadémica — Seed completo');
+        $this->command->info('════════════════════════════════════════');
 
-        // Usuarios de prueba
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
-            [
-                'first_name' => 'Admin',
-                'last_name' => 'User',
-                'username' => 'admin',
-                'password' => Hash::make('password')
-            ]
-        );
-        $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+        $this->call([
+            RoleSeeder::class,
+            SchoolSeeder::class,
+            UserSeeder::class,
+            GradeSubjectSeeder::class,
+            CurriculumItemsSeeder::class,
+            CurriculumGridSeeder::class,
+            AssignmentSeeder::class,
+            WeekScheduleSeeder::class,
+        ]);
 
-        $coordinator = User::firstOrCreate(
-            ['email' => 'coordinator@example.com'],
-            [
-                'first_name' => 'Coord',
-                'last_name' => 'User',
-                'username' => 'coordinator',
-                'password' => Hash::make('password')
-            ]
-        );
-        $coordinator->roles()->syncWithoutDetaching([$coordinatorRole->id]);
-
-        $teacher = User::firstOrCreate(
-            ['email' => 'teacher@example.com'],
-            [
-                'first_name' => 'Teacher',
-                'last_name' => 'User',
-                'username' => 'teacher',
-                'password' => Hash::make('password')
-            ]
-        );
-        $teacher->roles()->syncWithoutDetaching([$teacherRole->id]);
-
-        $student = User::firstOrCreate(
-            ['email' => 'student@example.com'],
-            [
-                'first_name' => 'Student',
-                'last_name' => 'User',
-                'username' => 'student',
-                'password' => Hash::make('password')
-            ]
-        );
-        $student->roles()->syncWithoutDetaching([$studentRole->id]);
+        $this->command->info('');
+        $this->command->info('════════════════════════════════════════');
+        $this->command->info('  ✓ Seed completado exitosamente.');
+        $this->command->info('');
+        $this->command->info('  CREDENCIALES DE ACCESO:');
+        $this->command->info('  ┌──────────────────┬─────────────────────────────────┬─────────────┐');
+        $this->command->info('  │ Rol              │ Email                           │ Contraseña  │');
+        $this->command->info('  ├──────────────────┼─────────────────────────────────┼─────────────┤');
+        $this->command->info('  │ Admin            │ admin@gestion.edu.co            │ Admin2024*  │');
+        $this->command->info('  │ Coordinador      │ coordinador@gestion.edu.co      │ Coord2024*  │');
+        $this->command->info('  │ Profesor         │ profesor@gestion.edu.co         │ Profe2024*  │');
+        $this->command->info('  │ Estudiante       │ amendez@gestion.edu.co          │ Estu2024*   │');
+        $this->command->info('  └──────────────────┴─────────────────────────────────┴─────────────┘');
+        $this->command->info('════════════════════════════════════════');
+        $this->command->info('');
     }
 }

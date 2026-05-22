@@ -138,6 +138,7 @@ class CurriculumAssignmentController extends Controller
                 'cg.description',
                 'cg.order',
                 'cg.active',
+                'cg.period',
                 'g.id as grade_id',
                 'g.name as grade_name',
                 's.id as subject_id',
@@ -167,6 +168,7 @@ class CurriculumAssignmentController extends Controller
                 'grade_name' => $assignment->grade_name,
                 'subject_id' => $assignment->subject_id,
                 'subject_name' => $assignment->subject_name,
+                'period' => $assignment->period,
                 'description' => $assignment->description,
                 'order' => $assignment->order,
                 'active' => (bool) $assignment->active,
@@ -175,12 +177,12 @@ class CurriculumAssignmentController extends Controller
                 'school_id' => $assignment->school_id,
                 'school_name' => $assignment->school_name,
                 // Datos completos de la malla
-                'topics' => $grid->topics->map(fn($t) => ['id' => $t->id, 'name' => $t->name]),
-                'components' => $grid->components->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-                'standards' => $grid->standards->map(fn($s) => ['id' => $s->id, 'name' => $s->name]),
-                'competences' => $grid->competences->map(fn($c) => ['id' => $c->id, 'description' => $c->description]),
-                'affirmations' => $grid->affirmations->map(fn($a) => ['id' => $a->id, 'name' => $a->name]),
-                'evidences' => $grid->evidences->map(fn($e) => ['id' => $e->id, 'name' => $e->name]),
+                'topics' => $grid->topics->map(fn($t) => ['id' => $t->id, 'name' => $t->name, 'description' => $t->description ?? null]),
+                'components' => $grid->components->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'description' => $c->description ?? null]),
+                'standards' => $grid->standards->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'description' => $s->description ?? null]),
+                'competences' => $grid->competences->map(fn($c) => ['id' => $c->id, 'name' => $c->name ?? null, 'description' => $c->description]),
+                'affirmations' => $grid->affirmations->map(fn($a) => ['id' => $a->id, 'name' => $a->name, 'description' => $a->description ?? null]),
+                'evidences' => $grid->evidences->map(fn($e) => ['id' => $e->id, 'name' => $e->name, 'description' => $e->description ?? null]),
             ];
         });
 

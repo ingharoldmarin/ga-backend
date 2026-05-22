@@ -4,27 +4,36 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\GenericCrudController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserRoleController;
 use App\Http\Controllers\Api\UserSchoolController;
 use App\Http\Controllers\Api\CurriculumGridController;
 use App\Http\Controllers\Api\CurriculumAssignmentController;
+use App\Http\Controllers\Api\TeacherSubjectController;
+use App\Http\Controllers\Api\TeacherMallaExtrasController;
+use App\Http\Controllers\Api\TeacherWeekScheduleController;
+use App\Http\Controllers\Api\TeacherScheduleObservationController;
+use App\Http\Controllers\Api\CoordinatorMonitorController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    // Auth
-    Route::post('auth/register', [AuthController::class, 'register']);
-    Route::post('auth/login', [AuthController::class, 'login']);
+    // Auth (rate limited: máx 10 intentos por minuto)
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::post('auth/register', [AuthController::class, 'register']);
+        Route::post('auth/login', [AuthController::class, 'login']);
+    });
 
     // Protected endpoints
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
 
-        // Users & Roles CRUD
+        // Users, Roles & Schools CRUD
         Route::post('/users/bulk', [UserController::class, 'bulkStore']); // DEBE IR ANTES del apiResource
         Route::apiResource('users', UserController::class);
         Route::apiResource('roles', RoleController::class);
+        Route::apiResource('schools', SchoolController::class);
 
         // Admin-only: asignación de roles a usuarios
         Route::middleware('role:admin')->group(function () {
@@ -56,6 +65,30 @@ Route::prefix('v1')->group(function () {
         
         // Obtener profesores disponibles para asignar
         Route::get('teachers/available', [CurriculumAssignmentController::class, 'getAvailableTeachers']);
+
+        // Extras personales del docente en su malla
+        Route::get('teacher/malla-extras', [TeacherMallaExtrasController::class, 'index']);
+        Route::post('teacher/malla-extras', [TeacherMallaExtrasController::class, 'store']);
+        Route::delete('teacher/malla-extras/{id}', [TeacherMallaExtrasController::class, 'destroy']);
+        Route::get('teacher/malla-catalog', [TeacherMallaExtrasController::class, 'catalog']);
+
+        Route::get('teacher/week-schedule', [TeacherWeekScheduleController::class, 'index']);
+        Route::post('teacher/week-schedule/batch', [TeacherWeekScheduleController::class, 'batchSave']);
+
+        Route::get('teacher/schedule-observations', [TeacherScheduleObservationController::class, 'index']);
+        Route::post('teacher/schedule-observations/batch', [TeacherScheduleObservationController::class, 'batchSave']);
+
+        // Coordinator monitoring (read-only views of teacher data)
+        Route::get('coordinator/monitor/teacher/{userId}/malla',    [CoordinatorMonitorController::class, 'getTeacherMalla']);
+        Route::get('coordinator/monitor/teacher/{userId}/schedule',  [CoordinatorMonitorController::class, 'getTeacherSchedule']);
+        Route::get('coordinator/monitor/observations',               [CoordinatorMonitorController::class, 'getSchoolObservations']);
+        Route::get('coordinator/monitor/statistics',                 [CoordinatorMonitorController::class, 'getStatistics']);
+
+        // Asignación docente-grado-materia
+        Route::get('teachers', [TeacherSubjectController::class, 'teachers']);
+        Route::get('teacher-subjects', [TeacherSubjectController::class, 'index']);
+        Route::post('teacher-subjects', [TeacherSubjectController::class, 'store']);
+        Route::delete('teacher-subjects/{id}', [TeacherSubjectController::class, 'destroy']);
         
         // Asignar/desasignar mallas (coordinadores y admin)
         Route::post('curriculum-grid/{id}/assign', [CurriculumAssignmentController::class, 'assign']);

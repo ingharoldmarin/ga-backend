@@ -38,6 +38,10 @@ class CurriculumGridController extends Controller
             $query->where('subject_id', $request->query('subject_id'));
         }
 
+        if ($request->filled('period')) {
+            $query->where('period', $request->query('period'));
+        }
+
         if ($request->filled('active')) {
             $active = filter_var($request->query('active'), FILTER_VALIDATE_BOOLEAN);
             $query->where('active', $active);
@@ -45,7 +49,7 @@ class CurriculumGridController extends Controller
 
         $query->orderBy('order', 'asc')->orderBy('id', 'asc');
 
-        $perPage = (int) min(max((int) $request->query('per_page', 25), 1), 100);
+        $perPage = (int) min(max((int) $request->query('per_page', 25), 1), 500);
         
         $result = $query->paginate($perPage);
 
@@ -55,17 +59,18 @@ class CurriculumGridController extends Controller
                 'id' => $item->id,
                 'grade_id' => $item->grade_id,
                 'subject_id' => $item->subject_id,
+                'period' => $item->period,
                 'grade_name' => $item->grade->name ?? null,
                 'subject_name' => $item->subject->name ?? null,
                 'description' => $item->description,
                 'order' => $item->order,
                 'active' => $item->active,
-                'topics' => $item->topics->map(fn($t) => ['id' => $t->id, 'name' => $t->name]),
-                'components' => $item->components->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-                'standards' => $item->standards->map(fn($s) => ['id' => $s->id, 'name' => $s->name]),
-                'competences' => $item->competences->map(fn($c) => ['id' => $c->id, 'description' => $c->description]),
-                'affirmations' => $item->affirmations->map(fn($a) => ['id' => $a->id, 'name' => $a->name]),
-                'evidences' => $item->evidences->map(fn($e) => ['id' => $e->id, 'name' => $e->name]),
+                'topics' => $item->topics->map(fn($t) => ['id' => $t->id, 'name' => $t->name, 'description' => $t->description ?? null]),
+                'components' => $item->components->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'description' => $c->description ?? null]),
+                'standards' => $item->standards->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'description' => $s->description ?? null]),
+                'competences' => $item->competences->map(fn($c) => ['id' => $c->id, 'name' => $c->name ?? null, 'description' => $c->description]),
+                'affirmations' => $item->affirmations->map(fn($a) => ['id' => $a->id, 'name' => $a->name, 'description' => $a->description ?? null]),
+                'evidences' => $item->evidences->map(fn($e) => ['id' => $e->id, 'name' => $e->name, 'description' => $e->description ?? null]),
                 'created_at' => $item->created_at,
                 'updated_at' => $item->updated_at,
             ];
@@ -94,17 +99,18 @@ class CurriculumGridController extends Controller
             'id' => $item->id,
             'grade_id' => $item->grade_id,
             'subject_id' => $item->subject_id,
+            'period' => $item->period,
             'grade_name' => $item->grade->name ?? null,
             'subject_name' => $item->subject->name ?? null,
             'description' => $item->description,
             'order' => $item->order,
             'active' => $item->active,
-            'topics' => $item->topics->map(fn($t) => ['id' => $t->id, 'name' => $t->name]),
-            'components' => $item->components->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
-            'standards' => $item->standards->map(fn($s) => ['id' => $s->id, 'name' => $s->name]),
-            'competences' => $item->competences->map(fn($c) => ['id' => $c->id, 'description' => $c->description]),
-            'affirmations' => $item->affirmations->map(fn($a) => ['id' => $a->id, 'name' => $a->name]),
-            'evidences' => $item->evidences->map(fn($e) => ['id' => $e->id, 'name' => $e->name]),
+            'topics' => $item->topics->map(fn($t) => ['id' => $t->id, 'name' => $t->name, 'description' => $t->description ?? null]),
+            'components' => $item->components->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'description' => $c->description ?? null]),
+            'standards' => $item->standards->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'description' => $s->description ?? null]),
+            'competences' => $item->competences->map(fn($c) => ['id' => $c->id, 'name' => $c->name ?? null, 'description' => $c->description]),
+            'affirmations' => $item->affirmations->map(fn($a) => ['id' => $a->id, 'name' => $a->name, 'description' => $a->description ?? null]),
+            'evidences' => $item->evidences->map(fn($e) => ['id' => $e->id, 'name' => $e->name, 'description' => $e->description ?? null]),
         ]);
     }
 
@@ -118,6 +124,7 @@ class CurriculumGridController extends Controller
         $validated = $request->validate([
             'grade_id' => ['required', 'integer', 'exists:grade,id'],
             'subject_id' => ['required', 'integer', 'exists:subject,id'],
+            'period' => ['nullable', 'integer', 'min:1', 'max:4'],
             'topic_ids' => ['required', 'array', 'min:1'],
             'topic_ids.*' => ['integer', 'exists:topic,id'],
             'component_ids' => ['required', 'array', 'min:1'],
@@ -135,16 +142,38 @@ class CurriculumGridController extends Controller
             'active' => ['nullable', 'boolean'],
         ]);
 
+        // ── Verificar si ya existe exactamente este camino (misma evidencia en mismo contexto) ──
+        $evidenceId = $validated['evidence_ids'][0];
+        $existingId = DB::table('curriculum_grid as cg')
+            ->join('curriculum_grid_evidence as cge', 'cge.curriculum_grid_id', '=', 'cg.id')
+            ->where('cg.grade_id',   $validated['grade_id'])
+            ->where('cg.subject_id', $validated['subject_id'])
+            ->where(function ($q) use ($validated) {
+                $period = $validated['period'] ?? null;
+                $period ? $q->where('cg.period', $period) : $q->whereNull('cg.period');
+            })
+            ->where('cge.evidence_id', $evidenceId)
+            ->whereNull('cg.deleted_at')
+            ->value('cg.id');
+
+        if ($existingId) {
+            $existing = CurriculumGrid::with([
+                'topics', 'components', 'standards', 'competences', 'affirmations', 'evidences'
+            ])->findOrFail($existingId);
+            return response()->json($existing); // idempotente: devuelve el existente
+        }
+
         DB::beginTransaction();
-        
+
         try {
             // Crear entrada base
             $grid = CurriculumGrid::create([
-                'grade_id' => $validated['grade_id'],
+                'grade_id'   => $validated['grade_id'],
                 'subject_id' => $validated['subject_id'],
+                'period'     => $validated['period'] ?? null,
                 'description' => $validated['description'] ?? null,
-                'order' => $validated['order'] ?? 0,
-                'active' => $validated['active'] ?? true,
+                'order'      => $validated['order'] ?? 0,
+                'active'     => $validated['active'] ?? true,
             ]);
 
             // Asociar múltiples relaciones

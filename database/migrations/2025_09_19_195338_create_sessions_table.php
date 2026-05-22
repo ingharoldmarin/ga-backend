@@ -11,6 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::dropIfExists('sessions');
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->foreignId('user_id')->nullable()->index();
@@ -19,9 +20,6 @@ return new class extends Migration
             $table->longText('payload');
             $table->integer('last_activity')->index();
         });
-        
-        // Add this to ensure the table is created with the correct engine
-        DB::statement('ALTER TABLE `sessions` ENGINE = InnoDB');
     }
 
     /**

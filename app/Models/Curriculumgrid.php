@@ -4,16 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CurriculumGrid extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'curriculum_grid';
 
     protected $fillable = [
         'grade_id',
         'subject_id',
+        'period',
         'description',
         'order',
         'active',
@@ -21,13 +23,10 @@ class CurriculumGrid extends Model
 
     protected $casts = [
         'active' => 'boolean',
-        'order' => 'integer',
+        'order'  => 'integer',
+        'period' => 'integer',
     ];
 
-    /**
-     * Relaciones principales
-     */
-    
     public function grade()
     {
         return $this->belongsTo(Grade::class);
@@ -38,10 +37,6 @@ class CurriculumGrid extends Model
         return $this->belongsTo(Subject::class);
     }
 
-    /**
-     * Relaciones múltiples (muchos a muchos)
-     */
-    
     public function topics()
     {
         return $this->belongsToMany(
@@ -101,9 +96,7 @@ class CurriculumGrid extends Model
             'evidence_id'
         )->withTimestamps();
     }
-        /**
-     * ⭐ NUEVA RELACIÓN: Profesores que tienen esta malla asignada
-     */
+
     public function users()
     {
         return $this->belongsToMany(

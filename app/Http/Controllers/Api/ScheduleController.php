@@ -118,15 +118,18 @@ class ScheduleController extends Controller
         }
 
         Log::info('Insertando ' . count($rows) . ' registros');
-        DB::table($this->table)->insert($rows);
 
-        $inserted = DB::table($this->table)
-            ->where('grade_id', $base['grade_id'])
-            ->where('subject_id', $base['subject_id'])
-            ->whereIn('week_id', $weeks)
-            ->orderByDesc('id')
-            ->limit(count($weeks))
-            ->get();
+        $inserted = DB::transaction(function () use ($rows, $base, $weeks) {
+            DB::table($this->table)->insert($rows);
+
+            return DB::table($this->table)
+                ->where('grade_id', $base['grade_id'])
+                ->where('subject_id', $base['subject_id'])
+                ->whereIn('week_id', $weeks)
+                ->orderByDesc('id')
+                ->limit(count($weeks))
+                ->get();
+        });
 
         Log::info('✅ Cronogramas creados exitosamente: ' . count($inserted));
 

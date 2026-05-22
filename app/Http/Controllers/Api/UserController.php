@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -15,12 +16,32 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        // ⭐ Obtener parámetro per_page de la petición (default: 25, max: 1000)
-        $perPage = $request->input('per_page', 25);
-        $perPage = min($perPage, 1000); // Limitar a máximo 1000 por seguridad
-        
-        // ⭐ IMPORTANTE: Cargar relaciones schools y roles
-        return User::with(['roles', 'schools'])->paginate($perPage);
+        $perPage = min((int) $request->input('per_page', 25), 200);
+
+        $query = User::with(['roles', 'schools']);
+
+        if ($request->filled('search')) {
+            $search = $request->query('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('school_ids')) {
+            $schoolIds = array_filter(array_map('intval', explode(',', $request->query('school_ids'))));
+            if (!empty($schoolIds)) {
+                $query->whereHas('schools', fn($q) => $q->whereIn('schools.id', $schoolIds));
+            }
+        }
+
+        if ($request->boolean('exclude_admins')) {
+            $query->whereDoesntHave('roles', fn($q) => $q->where('name', 'admin'));
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function show(User $user)
@@ -48,35 +69,27 @@ class UserController extends Controller
             'school_ids.*' => ['integer', 'exists:schools,id'],
         ]);
 
-        $user = User::create([
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
-            'username' => $validated['username'],
-            'password' => Hash::make($validated['password']),
-        ]);
+        $user = DB::transaction(function () use ($validated) {
+            $user = User::create([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'email' => $validated['email'],
+                'username' => $validated['username'],
+                'password' => Hash::make($validated['password']),
+            ]);
+
+            if (!empty($validated['roles'])) {
+                $user->roles()->sync($validated['roles']);
+            }
+
+            if (!empty($validated['school_ids'])) {
+                $user->schools()->sync($validated['school_ids']);
+            }
+
+            return $user;
+        });
 
         Log::info('Usuario creado con ID: ' . $user->id);
-
-        // Asignar roles
-        if (!empty($validated['roles'])) {
-            $user->roles()->sync($validated['roles']);
-            Log::info('Roles asignados:', $validated['roles']);
-        }
-
-        // ⭐ NUEVO: Asignar colegios
-        if (!empty($validated['school_ids'])) {
-            Log::info('Asignando colegios al usuario', [
-                'user_id' => $user->id,
-                'school_ids' => $validated['school_ids']
-            ]);
-            
-            $user->schools()->sync($validated['school_ids']);
-            
-            Log::info('Colegios asignados correctamente');
-        } else {
-            Log::info('No se recibieron school_ids');
-        }
 
         // ⭐ IMPORTANTE: Retornar con ambas relaciones
         return response()->json($user->load(['roles', 'schools']), Response::HTTP_CREATED);
@@ -101,25 +114,25 @@ class UserController extends Controller
             'school_ids.*' => ['integer', 'exists:schools,id'],
         ]);
 
-        $user->fill(collect($validated)->except(['roles', 'password', 'school_ids'])->all());
-        
-        if (!empty($validated['password'])) {
-            $user->password = Hash::make($validated['password']);
-        }
-        
-        $user->save();
-        
-        // Actualizar roles
-        if (array_key_exists('roles', $validated)) {
-            $user->roles()->sync($validated['roles'] ?? []);
-            Log::info('Roles actualizados');
-        }
+        DB::transaction(function () use ($request, $user, $validated) {
+            $user->fill(collect($validated)->except(['roles', 'password', 'school_ids'])->all());
 
-        // ⭐ NUEVO: Actualizar colegios
-        if (array_key_exists('school_ids', $validated)) {
-            $user->schools()->sync($validated['school_ids'] ?? []);
-            Log::info('Colegios actualizados:', $validated['school_ids'] ?? []);
-        }
+            if (!empty($validated['password'])) {
+                $user->password = Hash::make($validated['password']);
+            }
+
+            $user->save();
+
+            if (array_key_exists('roles', $validated)) {
+                $user->roles()->sync($validated['roles'] ?? []);
+            }
+
+            if (array_key_exists('school_ids', $validated)) {
+                $user->schools()->sync($validated['school_ids'] ?? []);
+            }
+        });
+
+        Log::info('Usuario actualizado: ' . $user->id);
 
         // ⭐ IMPORTANTE: Retornar con ambas relaciones
         return $user->load(['roles', 'schools']);
@@ -127,8 +140,7 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        Log::info('Eliminando usuario: ' . $user->email);
-        $user->delete();
+        $user->delete(); // SoftDelete — el AuditObserver registra la acción automáticamente
         return response()->noContent();
     }
 
@@ -159,24 +171,25 @@ class UserController extends Controller
 
         foreach ($validated['users'] as $index => $userData) {
             try {
-                // Crear usuario
-                $user = User::create([
-                    'first_name' => $userData['first_name'],
-                    'last_name' => $userData['last_name'],
-                    'email' => $userData['email'],
-                    'username' => $userData['username'],
-                    'password' => Hash::make($userData['password']),
-                ]);
+                $user = DB::transaction(function () use ($userData) {
+                    $user = User::create([
+                        'first_name' => $userData['first_name'],
+                        'last_name' => $userData['last_name'],
+                        'email' => $userData['email'],
+                        'username' => $userData['username'],
+                        'password' => Hash::make($userData['password']),
+                    ]);
 
-                // Asignar roles
-                if (!empty($userData['roles'])) {
-                    $user->roles()->sync($userData['roles']);
-                }
+                    if (!empty($userData['roles'])) {
+                        $user->roles()->sync($userData['roles']);
+                    }
 
-                // Asignar colegios
-                if (!empty($userData['school_ids'])) {
-                    $user->schools()->sync($userData['school_ids']);
-                }
+                    if (!empty($userData['school_ids'])) {
+                        $user->schools()->sync($userData['school_ids']);
+                    }
+
+                    return $user;
+                });
 
                 $createdUsers[] = $user->load(['roles', 'schools']);
             } catch (\Exception $e) {

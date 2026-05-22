@@ -8,9 +8,10 @@ use Illuminate\Http\Request;
 
 class SchoolController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return School::paginate(25);
+        $perPage = min((int) $request->input('per_page', 25), 200);
+        return School::paginate($perPage);
     }
 
     public function show(School $school)

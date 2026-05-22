@@ -41,6 +41,11 @@ class GenericCrudController extends Controller
         return $table;
     }
 
+    private function onlyScalars(array $data): array
+    {
+        return array_filter($data, fn($v) => is_scalar($v) || is_null($v));
+    }
+
     public function index(Request $request, string $resource)
     {
         $table = $this->resolveTableOrAbort($resource);
@@ -61,7 +66,12 @@ class GenericCrudController extends Controller
     public function store(Request $request, string $resource)
     {
         $table = $this->resolveTableOrAbort($resource);
-        $data = $request->except(['id', 'created_at', 'updated_at']);
+        $data = $this->onlyScalars($request->except(['id', 'created_at', 'updated_at']));
+
+        if (empty($data)) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No valid fields provided');
+        }
+
         $id = DB::table($table)->insertGetId($data);
         $row = DB::table($table)->where('id', $id)->first();
         return response()->json($row, Response::HTTP_CREATED);
@@ -70,7 +80,12 @@ class GenericCrudController extends Controller
     public function update(Request $request, string $resource, int $id)
     {
         $table = $this->resolveTableOrAbort($resource);
-        $data = $request->except(['id', 'created_at', 'updated_at']);
+        $data = $this->onlyScalars($request->except(['id', 'created_at', 'updated_at']));
+
+        if (empty($data)) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'No valid fields provided');
+        }
+
         $exists = DB::table($table)->where('id', $id)->exists();
         if (!$exists) {
             abort(Response::HTTP_NOT_FOUND);
